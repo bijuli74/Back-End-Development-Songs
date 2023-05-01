@@ -47,6 +47,62 @@ db.songs.insert_many(songs_list)
 def parse_json(data):
     return json.loads(json_util.dumps(data))
 
-######################################################################
-# INSERT CODE HERE
-######################################################################
+@app.route("/health")
+def health():
+    return jsonify(dict(status="OK")), 200
+
+@app.route("/count")
+def count():
+    count = db.songs.count_documents({})
+    return {"count": count}, 200
+
+@app.route("/song", methods=["GET"])
+def songs():
+    res = list(db.songs.find({}))
+    print(res[0])
+    return {"songs": parse_json(res)}, 200
+
+@app.route("/song/<int:id>", methods=["GET"])
+def get_song_by_id(id):
+    song = db.songs.find_one({"id": id})
+    if not song:
+        abort({"message": f"song with id {id} not found"}, 404)
+    return parse_json(song), 200
+
+@app.route("/song", methods=["POST"])
+def create_song():
+    song_in = request.json
+    print(song_in["id"])
+
+    song = db.songs.find_one({"id": song_in["id"]})
+    if not song:
+        insert_id: InsertOneResult = db.songs.insert_one(song_in)
+        return {"inserted id": parse_json(insert_id.inserted_id)}, 201
+    else:
+        return abort({"message": f"song with id {song['id']} already present"}, 302)
+
+@app.route("/song/<int:id>", methods=["PUT"])
+def update_song(id):
+    song_in = request.json
+
+    song = db.songs.find_one({"id": id})
+    if not song:
+        abort({"message": "song not found"}, 404)
+        
+    updated_data = {"$set": song_in}
+    res = db.songs.update_one({"id": id}, updated_data)
+
+    if res.modified_count == 0:
+        return {"message": "song found, but nothing updated"}, 200
+    else:
+        return parse_json(db.songs.find_one({"id": id})), 201
+
+@app.route("/song/<int:id>", methods=["DELETE"])
+def delete_song(id):
+    res = db.songs.delete_one({"id": id})
+    deleted_count = res.deleted_count
+    if not deleted_count:
+        abort({"message": "song not found"}, 404)
+    else:
+        return "", 204
+    
